@@ -89,6 +89,7 @@ Following that each byte is the state of the intersection going left to rigth, t
 0 = empty
 1 = black stone
 2 = white stone
+3 = ko mark (playing here would be an illigal ko move)
 
 For evaluations, it can be useful to note that nodes 1, n, n^2 - (n-1) and n^2 are corners, nodes 1-n, n^2 - (n-2) to n^2 - 1 as well as any node fro which idex % n = 0 or 1 AND idex > n * (n - 1) are sides. As the game of go needs only count libertides, this can be generalized relatively easily, but needs to be checked for as lots of natural adjacency operations would lead to wraparound. 
 

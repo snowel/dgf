@@ -70,6 +70,7 @@ func countLiberties(inter int, board []byte) int {
 // TODO if there is no need for seperate, I coudl absolutely combine them...
 
 //For a given stone, list all stones that form a group with that stone as well as how many are in it
+// TODO player grabbed from intersection value
 func getGroup(board []byte, inter int, group []int, player byte) []int {
 	if Contains(inter, group){
 		return group
@@ -139,6 +140,65 @@ func countGroupLiberties(board []byte, group []int) int {
   return libs
 }
 
+//TODO really beed to extract the neighboring intersectoin if checks with anonymous funcitons
+// For a group gie the liberties of the group
+func listGroupLiberties(board []byte, group []int) []int {
+  var libs []int
+	n := (int)(board[3])
+  for _, v := range group {
+  if v == 1 { // 1-1 conrner
+		if board[v + 1 + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+		if board[v + n + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+	}
+  if v == n { // 19-1 corner(or equiv)
+		if board[v - 1 + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+		if board[v + n + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+	}
+  if v == n * (n-1) + 1 { // 1-19 conrenr 
+		if board[v + 1 + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+		if board[v - n + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+	}
+	if v == intPow(n) {
+		if board[v - 1 + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+		if board[v - n + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+	}
+  if (v - 1) % n == 0 { // Left side, 1-x
+		if board[v + 1 + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+		if board[v - n + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+		if board[v + n + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+	}
+  if v % n == 0 { // rigth side n-x
+		if board[v - 1 + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+		if board[v - n + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+		if board[v + n + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+	}
+  if v < n { // top side x-1
+		if board[v + 1 + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+		if board[v - 1 + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+		if board[v + n + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+	}
+  if v > n * (n-1) { // bottom side
+		if board[v + 1 + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+		if board[v - n + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+		if board[v - 1 + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+	}
+
+	 if board[v - 1 + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+	 if board[v + 1 + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+	 if board[v - n + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+	 if board[v + n + BOff] == 0 { libs = ExclusiveAppend(libs, v) }
+  }
+  return libs
+}
+
+// For a group with one liberty, return the liberty
+//int -1 : group has more than 1 liberty or no libeties
+func groupAtary(board []byte, group []int) int {
+	libList := listGroupLiberties(board, group)
+	if len(libList) == 1 { return libList[0] }
+	return -1
+}
+
 //removes stoens and adds them to the appropriate cpature score
 func captureGroup(board []byte, group []int) {
   player := 0b00000011 ^ board[group[0] + BOff] //we are assuming a non 0 array. reminder vlaues at intersect represented the color of that stone
@@ -161,7 +221,29 @@ func RemoveCaptures(player byte, board []byte) {
 			if libs <= 0 {captureGroup(board, group)}
 		}
 	}
- }
+}
+
+// Premptive marking illigal ko moves
+// Mut
+func MarkKo(past []byte, present []byte, lastMove int) bool {
+	// Check if the stone played is a single stone (Multi capture cannot be ko)
+	var group []int
+	getGroup(presetn, lastMove, group)
+	if len(group) != 1 { return false }
+	// Check if the stone played has a single liberty
+	if countGroupLiberties(present, group) != 1 { return false }
+	// Check if capturing the stone would result in the past board position
+	recap := groupAtary(present, group)
+	if BoardPositionEqual(ApplyMove(present, recap), past) {
+		// Mut the present board with ko mark
+		present[recap + BOff] = 3
+		return true
+	}
+	return false
+}
+
+
+
 
 // Applies a move without validating it.
 func ApplyMove(board []byte, move int) []byte {
@@ -283,6 +365,19 @@ func RecordToPartial(rec []int, n int) []byte {
 	return board
 }
 
+// For a given record, validates all the moves are legal. Checks ko, self capture, play over stone
+//func ValidateRecMoves(rec []int)
+//From a recore, checkif a move is valid anr returns the new updated boardstate (without altering the record)
+func RecValidateMove(rec []int, move int) (bool, []byte) {
+	length := SeqLen(rec)
+	current := RecordToPartial(rec, length)
+	previous := RecordToPartial(rec, length - 1)
+
+	valid, next := ValidateMove(previous, current, move)
+
+	return valid, next
+}
+
 /*---  Utills  ---*/
 /*--- --- Graphical  ---*/
 
@@ -347,4 +442,13 @@ func ExclusiveAppend[E comparable](slice []E, val ...E) []E {
 	}
 
 	return slice
+}
+
+func BoardCopy[V any](target []V, source []V) int {
+	if len(target) != len(source) {return -1}
+	
+	for i, _ := range target {
+		target[i] = source[i]
+	}
+	return 0
 }
